@@ -9,10 +9,14 @@ import bcrypt from 'bcryptjs'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1280,
     height: 800,
+    minWidth: 1000,
+    minHeight: 700,
     show: false,
     autoHideMenuBar: true,
+    title: 'Startup OS',
+    icon: join(__dirname, '../../build/icon.ico'),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -63,11 +67,14 @@ db.exec(`
 let NVIDIA_API_KEY = ''
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.startupos.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Ensure user data dir exists
+  fs.ensureDirSync(app.getPath('userData'))
 
   // Auth IPC Handlers
   ipcMain.handle('auth:register', async (_, { email, password }) => {
@@ -93,6 +100,15 @@ app.whenReady().then(() => {
       if (!isValid) return { success: false, error: 'Invalid email or password' }
 
       return { success: true, user: { email: user.email } }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('auth:getProjects', async (_, email) => {
+    try {
+      const projects = db.prepare('SELECT * FROM projects WHERE user_email = ?').all(email)
+      return { success: true, projects }
     } catch (error: any) {
       return { success: false, error: error.message }
     }

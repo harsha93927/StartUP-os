@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import SplashScreen from './components/SplashScreen'
 import AuthScreen from './components/AuthScreen'
 import WorkspaceSetup from './components/WorkspaceSetup'
+import ProjectSelection from './components/ProjectSelection'
 import ProjectCreation from './components/ProjectCreation'
 import PlannerInitialization from './components/PlannerInitialization'
 import ClarificationPhase from './components/ClarificationPhase'
@@ -18,6 +19,8 @@ import { LayoutDashboard, Map, FileText, Settings, LogOut, Search } from 'lucide
 import { motion, AnimatePresence } from 'framer-motion'
 
 enum ProjectPhase {
+  PROJECT_SELECTION,
+  PROJECT_CREATION,
   PLANNER_INITIALIZATION,
   CLARIFICATION,
   AGENT_SELECTION,
@@ -28,10 +31,10 @@ enum ProjectPhase {
 function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [isCreatingProject, setIsCreatingProject] = useState(false)
-
-  const [projectPhase, setProjectPhase] = useState<ProjectPhase>(ProjectPhase.PLANNER_INITIALIZATION)
+  const [projectPhase, setProjectPhase] = useState<ProjectPhase>(ProjectPhase.PROJECT_SELECTION)
   const [activeTab, setActiveTab] = useState<'today' | 'roadmap' | 'reports'>('today')
 
+  const [projects, setProjects] = useState<any[]>([])
   const [roadmap, setRoadmap] = useState<RoadmapBlock[]>([])
   const [memory, setMemory] = useState<any>(null)
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
@@ -42,11 +45,28 @@ function App() {
 
   const { user, setUser, workspacePath, setWorkspacePath, currentProject, setCurrentProject, logout } = useAppStore()
 
+  // Fetch projects when user and workspace are ready
+  useEffect(() => {
+    if (user && workspacePath) {
+      fetchProjects()
+    }
+  }, [user, workspacePath])
+
   useEffect(() => {
     if (currentProject) {
       loadProjectData()
+    } else {
+      setProjectPhase(ProjectPhase.PROJECT_SELECTION)
     }
   }, [currentProject?.path])
+
+  const fetchProjects = async () => {
+    if (!user) return
+    const result = await window.api.getProjects(user.email)
+    if (result.success) {
+      setProjects(result.projects)
+    }
+  }
 
   const loadProjectData = async () => {
     if (!currentProject) return
@@ -63,7 +83,6 @@ function App() {
         setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
       }
     } catch (err) {
-      console.error('Error loading project data:', err)
       setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
     }
   }
@@ -78,9 +97,10 @@ function App() {
           path: result.path,
           description: data.description
         })
+        fetchProjects()
       }
     } catch (error) {
-      console.error('Project creation error:', error)
+      console.error(error)
     } finally {
       setIsCreatingProject(false)
     }
@@ -101,7 +121,7 @@ function App() {
       await window.api.writeJson(currentProject!.path, 'Memory/roadmap.json', blocks)
       setProjectPhase(ProjectPhase.DASHBOARD)
     } catch (error) {
-      console.error('Strategy completion error:', error)
+      console.error(error)
     }
   }
 
@@ -117,15 +137,23 @@ function App() {
     return <WorkspaceSetup onWorkspaceSelected={setWorkspacePath} />
   }
 
-  if (!currentProject) {
-    return <ProjectCreation onCreateProject={handleCreateProject} isLoading={isCreatingProject} />
-  }
-
   switch (projectPhase) {
+    case ProjectPhase.PROJECT_SELECTION:
+      return (
+        <ProjectSelection
+          projects={projects}
+          onSelect={(p) => setCurrentProject(p)}
+          onNew={() => setProjectPhase(ProjectPhase.PROJECT_CREATION)}
+        />
+      )
+
+    case ProjectPhase.PROJECT_CREATION:
+      return <ProjectCreation onCreateProject={handleCreateProject} isLoading={isCreatingProject} />
+
     case ProjectPhase.PLANNER_INITIALIZATION:
       return (
         <PlannerInitialization
-          projectName={currentProject.name}
+          projectName={currentProject?.name || ''}
           onComplete={() => setProjectPhase(ProjectPhase.CLARIFICATION)}
         />
       )
@@ -147,7 +175,7 @@ function App() {
 
     case ProjectPhase.DASHBOARD:
       return (
-        <div className="flex h-screen bg-background overflow-hidden text-foreground font-sans">
+        <div className="flex h-screen bg-background overflow-hidden text-foreground font-sans tracking-tight">
           <div className="w-64 border-r border-border flex flex-col p-6 space-y-8 bg-secondary/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -169,7 +197,7 @@ function App() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as any)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all \${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                       activeTab === item.id
                       ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10'
                       : 'hover:bg-secondary text-muted-foreground hover:text-foreground'
@@ -196,11 +224,14 @@ function App() {
                     <Search className="w-4 h-4" />
                     Search
                   </div>
-                  <kbd className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border group-hover:bg-background">⌘K</kbd>
+                  <kbd className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border group-hover:bg-background tracking-tighter">⌘K</kbd>
                </button>
-               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                  <Settings className="w-4 h-4" />
-                  Settings
+               <button
+                  onClick={() => setCurrentProject(null)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+               >
+                  <Folder className="w-4 h-4" />
+                  Projects
                </button>
                <button
                   onClick={() => logout()}
@@ -276,3 +307,21 @@ function App() {
 }
 
 export default App
+
+function Folder({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24" height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+    </svg>
+  )
+}

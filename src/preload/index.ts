@@ -6,6 +6,7 @@ const api = {
   // Auth
   login: (credentials: any) => ipcRenderer.invoke('auth:login', credentials),
   register: (credentials: any) => ipcRenderer.invoke('auth:register', credentials),
+  getProjects: (email: string) => ipcRenderer.invoke('auth:getProjects', email),
 
   // Filesystem
   selectFolder: () => ipcRenderer.invoke('dialog:openDirectory'),

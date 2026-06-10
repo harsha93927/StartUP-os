@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: electron-app
+appId: com.startupos.app
+productName: Startup OS
 directories:
   buildResources: build
 files:
@@ -12,12 +12,22 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: electron-app
+  executableName: StartupOS
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -33,13 +43,13 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
+  maintainer: startupos.com
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
-npmRebuild: false
+npmRebuild: true
 publish:
   provider: generic
-  url: https://example.com/auto-updates
+  url: https://startupos.com/updates
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

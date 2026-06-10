@@ -2,6 +2,7 @@ interface ElectronAPI {
   // Auth
   login: (credentials: any) => Promise<{ success: boolean; user?: { email: string }; error?: string }>
   register: (credentials: any) => Promise<{ success: boolean; user?: { email: string }; error?: string }>
+  getProjects: (email: string) => Promise<{ success: boolean; projects: any[]; error?: string }>
 
   // Filesystem
   selectFolder: () => Promise<string | null>
