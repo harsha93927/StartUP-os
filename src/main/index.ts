@@ -35,6 +35,7 @@ function createWindow(): void {
 }
 
 let NVIDIA_API_KEY = ''
+const USERS_FILE = join(app.getPath('userData'), 'users.json')
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
@@ -43,16 +44,46 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC Handlers
+  // Ensure users file exists
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.ensureDirSync(app.getPath('userData'))
+    fs.writeJsonSync(USERS_FILE, [])
+  }
+
+  // IPC Handlers for Auth
+  ipcMain.handle('auth:register', async (_, { email, password }) => {
+    try {
+      const users = await fs.readJson(USERS_FILE)
+      if (users.find(u => u.email === email)) {
+        return { success: false, error: 'User already exists' }
+      }
+      users.push({ email, password })
+      await fs.writeJson(USERS_FILE, users)
+      return { success: true, user: { email } }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('auth:login', async (_, { email, password }) => {
+    try {
+      const users = await fs.readJson(USERS_FILE)
+      const user = users.find(u => u.email === email && u.password === password)
+      if (!user) {
+        return { success: false, error: 'Invalid email or password' }
+      }
+      return { success: true, user: { email } }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Other IPC Handlers
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openDirectory']
     })
-    if (canceled) {
-      return null
-    } else {
-      return filePaths[0]
-    }
+    return canceled ? null : filePaths[0]
   })
 
   ipcMain.handle('fs:createProjectFolder', async (_, { workspacePath, projectName, projectDescription }) => {
@@ -76,14 +107,7 @@ app.whenReady().then(() => {
       await fs.writeJson(join(projectPath, 'project.json'), projectData, { spaces: 2 })
 
       const memoryData = {
-        facts: [],
-        competitors: [],
-        risks: [],
-        opportunities: [],
-        decisions: [],
-        roadmaps: [],
-        milestones: [],
-        reports: []
+        facts: [], competitors: [], risks: [], opportunities: [], decisions: [], roadmaps: [], milestones: [], reports: []
       }
       await fs.writeJson(join(projectPath, 'Memory', 'memory.json'), memoryData, { spaces: 2 })
 
@@ -124,6 +148,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('fs:openPath', async (_, path) => {
     shell.openPath(path)
+  })
+
+  ipcMain.handle('path:join', async (_, ...args) => {
+    return join(...args)
   })
 
   ipcMain.handle('ai:setKey', (_, key) => {

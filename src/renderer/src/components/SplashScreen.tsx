@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { useEffect } from 'react'
-import logo from '../assets/logo.png'
 
 interface SplashScreenProps {
   onComplete: () => void
@@ -22,11 +21,11 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.15, scale: 1.2 }}
           transition={{ duration: 2, ease: "easeOut" }}
-          className="absolute inset-0 bg-black blur-3xl rounded-full"
+          className="absolute inset-0 bg-primary/10 blur-3xl rounded-full"
         />
 
         <motion.img
-          src={logo}
+          src="/logo.png"
           alt="SOS Logo"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -41,14 +40,14 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         transition={{ delay: 0.8, duration: 0.8 }}
         className="mt-8 text-center"
       >
-        <h1 className="text-2xl font-medium tracking-tight text-foreground">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Startup OS
         </h1>
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.6 }}
           transition={{ delay: 1.2, duration: 0.8 }}
-          className="mt-2 text-sm"
+          className="mt-2 text-sm font-medium text-muted-foreground"
         >
           From idea to execution
         </motion.p>

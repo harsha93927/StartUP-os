@@ -14,13 +14,10 @@ import ContextualAIPanel from './components/ContextualAIPanel'
 import CommandPalette from './components/CommandPalette'
 import { useAppStore } from './store/useAppStore'
 import { RoadmapBlock, generateRoadmap } from './lib/roadmap'
-import { LayoutDashboard, Map, FileText, Settings, LogOut, ChevronRight, Search } from 'lucide-react'
+import { LayoutDashboard, Map, FileText, Settings, LogOut, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-enum AppPhase {
-  AUTHENTICATION,
-  WORKSPACE_SETUP,
-  PROJECT_CREATION,
+enum ProjectPhase {
   PLANNER_INITIALIZATION,
   CLARIFICATION,
   AGENT_SELECTION,
@@ -30,18 +27,50 @@ enum AppPhase {
 
 function App() {
   const [showSplash, setShowSplash] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCreatingProject, setIsCreatingProject] = useState(false)
-  const [phase, setPhase] = useState<AppPhase>(AppPhase.AUTHENTICATION)
+
+  // Project-specific navigation state
+  const [projectPhase, setProjectPhase] = useState<ProjectPhase>(ProjectPhase.PLANNER_INITIALIZATION)
   const [activeTab, setActiveTab] = useState<'today' | 'roadmap' | 'reports'>('today')
+
+  // Data state
   const [roadmap, setRoadmap] = useState<RoadmapBlock[]>([])
   const [memory, setMemory] = useState<any>(null)
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
+
+  // UI state
   const [selectedBlock, setSelectedBlock] = useState<RoadmapBlock | null>(null)
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
-  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
 
-  const { workspacePath, setWorkspacePath, currentProject, setCurrentProject } = useAppStore()
+  const { user, setUser, workspacePath, setWorkspacePath, currentProject, setCurrentProject, logout } = useAppStore()
+
+  // Load project data when a project is selected
+  useEffect(() => {
+    if (currentProject) {
+      loadProjectData()
+    }
+  }, [currentProject?.path])
+
+  const loadProjectData = async () => {
+    if (!currentProject) return
+    try {
+      const roadmapData = await window.api.readJson(currentProject.path, 'Memory/roadmap.json').catch(() => null)
+      const memoryData = await window.api.readJson(currentProject.path, 'Memory/memory.json').catch(() => null)
+
+      if (memoryData) setMemory(memoryData)
+
+      if (roadmapData && roadmapData.length > 0) {
+        setRoadmap(roadmapData)
+        setProjectPhase(ProjectPhase.DASHBOARD)
+      } else {
+        setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
+      }
+    } catch (err) {
+      console.error('Error loading project data:', err)
+      setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
+    }
+  }
 
   const handleCreateProject = async (data: { name: string; description: string }, _attachments: File[]) => {
     setIsCreatingProject(true)
@@ -53,10 +82,9 @@ function App() {
           path: result.path,
           description: data.description
         })
-        setPhase(AppPhase.PLANNER_INITIALIZATION)
       }
     } catch (error) {
-      console.error(error)
+      console.error('Project creation error:', error)
     } finally {
       setIsCreatingProject(false)
     }
@@ -65,7 +93,7 @@ function App() {
   const handleAgentSelectionComplete = async (ids: string[], apiKey: string) => {
     await window.api.setAiKey(apiKey)
     setSelectedAgentIds(ids)
-    setPhase(AppPhase.STRATEGY_GENERATION)
+    setProjectPhase(ProjectPhase.STRATEGY_GENERATION)
   }
 
   const handleStrategyComplete = async () => {
@@ -75,18 +103,20 @@ function App() {
       const blocks = await generateRoadmap(currentProject, memoryData)
       setRoadmap(blocks)
       await window.api.writeJson(currentProject!.path, 'Memory/roadmap.json', blocks)
-      setPhase(AppPhase.DASHBOARD)
+      setProjectPhase(ProjectPhase.DASHBOARD)
     } catch (error) {
-      console.error(error)
+      console.error('Strategy completion error:', error)
     }
   }
+
+  // --- TOP LEVEL ROUTING ---
 
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />
   }
 
-  if (!isAuthenticated) {
-    return <AuthScreen onAuthSuccess={() => setIsAuthenticated(true)} />
+  if (!user) {
+    return <AuthScreen onAuthSuccess={(userData) => setUser(userData)} />
   }
 
   if (!workspacePath) {
@@ -97,17 +127,24 @@ function App() {
     return <ProjectCreation onCreateProject={handleCreateProject} isLoading={isCreatingProject} />
   }
 
-  switch (phase) {
-    case AppPhase.PLANNER_INITIALIZATION:
-      return <PlannerInitialization projectName={currentProject.name} onComplete={() => setPhase(AppPhase.CLARIFICATION)} />
+  // --- PROJECT WORKFLOW ROUTING ---
 
-    case AppPhase.CLARIFICATION:
-      return <ClarificationPhase onComplete={() => setPhase(AppPhase.AGENT_SELECTION)} />
+  switch (projectPhase) {
+    case ProjectPhase.PLANNER_INITIALIZATION:
+      return (
+        <PlannerInitialization
+          projectName={currentProject.name}
+          onComplete={() => setProjectPhase(ProjectPhase.CLARIFICATION)}
+        />
+      )
 
-    case AppPhase.AGENT_SELECTION:
+    case ProjectPhase.CLARIFICATION:
+      return <ClarificationPhase onComplete={() => setProjectPhase(ProjectPhase.AGENT_SELECTION)} />
+
+    case ProjectPhase.AGENT_SELECTION:
       return <AgentSelection onComplete={handleAgentSelectionComplete} />
 
-    case AppPhase.STRATEGY_GENERATION:
+    case ProjectPhase.STRATEGY_GENERATION:
       return (
         <StrategyGeneration
           projectContext={currentProject}
@@ -116,17 +153,17 @@ function App() {
         />
       )
 
-    case AppPhase.DASHBOARD:
+    case ProjectPhase.DASHBOARD:
       return (
         <div className="flex h-screen bg-background overflow-hidden text-foreground">
           {/* SIDEBAR */}
           <div className="w-64 border-r border-border flex flex-col p-6 space-y-8 bg-secondary/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-                   <div className="w-2.5 h-2.5 bg-background rounded-sm rotate-45" />
+                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center shadow-sm">
+                   <img src="/logo.png" className="w-4 h-4 invert" alt="SOS" />
                 </div>
-                <span className="font-bold tracking-tight text-sm">Startup OS</span>
+                <span className="font-bold tracking-tight text-sm text-foreground">Startup OS</span>
               </div>
             </div>
 
@@ -175,14 +212,11 @@ function App() {
                   Settings
                </button>
                <button
-                  onClick={() => {
-                    setCurrentProject(null)
-                    setPhase(AppPhase.PROJECT_CREATION)
-                  }}
+                  onClick={() => logout()}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
-                  Exit Project
+                  Sign Out
                </button>
             </div>
           </div>
@@ -198,12 +232,12 @@ function App() {
                  transition={{ duration: 0.2 }}
                  className="h-full"
                >
-                 {activeTab === 'today' && <TodayView projectName={currentProject.name} blocks={roadmap} />}
+                 {activeTab === 'today' && <TodayView projectName={currentProject?.name || ''} blocks={roadmap} />}
                  {activeTab === 'roadmap' && (
                    <div className="max-w-4xl mx-auto w-full space-y-8">
                       <div className="space-y-1">
-                        <h1 className="text-3xl font-semibold tracking-tight">Roadmap</h1>
-                        <p className="text-sm text-muted-foreground">Strategic execution blocks for your startup.</p>
+                        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Roadmap</h1>
+                        <p className="text-sm text-muted-foreground font-medium">Strategic execution blocks for your startup.</p>
                       </div>
                       <RoadmapUI
                         blocks={roadmap}
@@ -217,7 +251,10 @@ function App() {
                  {activeTab === 'reports' && (
                    <ReportsTab
                      reports={memory?.reports || []}
-                     onOpenReport={() => {}}
+                     onOpenReport={async (filename) => {
+                        const path = await window.api.join(currentProject!.path, 'Reports', filename)
+                        await window.api.openPath(path)
+                     }}
                    />
                  )}
                </motion.div>
@@ -244,7 +281,7 @@ function App() {
       )
 
     default:
-      return null
+      return <div className="h-screen w-screen bg-background" />
   }
 }
 

@@ -3,18 +3,26 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  // Auth
+  login: (credentials: any) => ipcRenderer.invoke('auth:login', credentials),
+  register: (credentials: any) => ipcRenderer.invoke('auth:register', credentials),
+
+  // Filesystem
   selectFolder: () => ipcRenderer.invoke('dialog:openDirectory'),
   createProjectFolder: (workspacePath: string, projectName: string, projectDescription: string) =>
     ipcRenderer.invoke('fs:createProjectFolder', { workspacePath, projectName, projectDescription }),
-  setAiKey: (key: string) => ipcRenderer.invoke('ai:setKey', key),
-  aiChat: (payload: { messages: any[], model?: string }) => ipcRenderer.invoke('ai:chat', payload),
   saveReport: (projectPath: string, filename: string, content: string) =>
     ipcRenderer.invoke('fs:saveReport', { projectPath, filename, content }),
   readJson: (projectPath: string, relativePath: string) =>
     ipcRenderer.invoke('fs:readJson', { projectPath, relativePath }),
   writeJson: (projectPath: string, relativePath: string, data: any) =>
     ipcRenderer.invoke('fs:writeJson', { projectPath, relativePath, data }),
-  openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path)
+  openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path),
+  join: (...args: string[]) => ipcRenderer.invoke('path:join', ...args),
+
+  // AI
+  setAiKey: (key: string) => ipcRenderer.invoke('ai:setKey', key),
+  aiChat: (payload: { messages: any[], model?: string }) => ipcRenderer.invoke('ai:chat', payload)
 }
 
 if (process.contextIsolated) {
