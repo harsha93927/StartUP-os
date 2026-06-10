@@ -4,6 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs-extra'
 import axios from 'axios'
+import Database from 'better-sqlite3'
+import bcrypt from 'bcryptjs'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -34,8 +36,31 @@ function createWindow(): void {
   }
 }
 
+// Database Setup
+const dbPath = join(app.getPath('userData'), 'startup-os.db')
+const db = new Database(dbPath)
+
+// Initialize Tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    path TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_email) REFERENCES users(email)
+  );
+`)
+
 let NVIDIA_API_KEY = ''
-const USERS_FILE = join(app.getPath('userData'), 'users.json')
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
@@ -44,49 +69,37 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Ensure users file exists
-  if (!fs.existsSync(USERS_FILE)) {
-    fs.ensureDirSync(app.getPath('userData'))
-    fs.writeJsonSync(USERS_FILE, [])
-  }
-
-  // IPC Handlers for Auth
+  // Auth IPC Handlers
   ipcMain.handle('auth:register', async (_, { email, password }) => {
     try {
-      const users = await fs.readJson(USERS_FILE)
-      if (users.find(u => u.email === email)) {
-        return { success: false, error: 'User already exists' }
-      }
-      users.push({ email, password })
-      await fs.writeJson(USERS_FILE, users)
+      const hashedPassword = await bcrypt.hash(password, 10)
+      const stmt = db.prepare('INSERT INTO users (email, password) VALUES (?, ?)')
+      stmt.run(email, hashedPassword)
       return { success: true, user: { email } }
     } catch (error: any) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return { success: false, error: 'Email already exists' }
+      }
       return { success: false, error: error.message }
     }
   })
 
   ipcMain.handle('auth:login', async (_, { email, password }) => {
     try {
-      const users = await fs.readJson(USERS_FILE)
-      const user = users.find(u => u.email === email && u.password === password)
-      if (!user) {
-        return { success: false, error: 'Invalid email or password' }
-      }
-      return { success: true, user: { email } }
+      const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any
+      if (!user) return { success: false, error: 'Invalid email or password' }
+
+      const isValid = await bcrypt.compare(password, user.password)
+      if (!isValid) return { success: false, error: 'Invalid email or password' }
+
+      return { success: true, user: { email: user.email } }
     } catch (error: any) {
       return { success: false, error: error.message }
     }
   })
 
-  // Other IPC Handlers
-  ipcMain.handle('dialog:openDirectory', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openDirectory']
-    })
-    return canceled ? null : filePaths[0]
-  })
-
-  ipcMain.handle('fs:createProjectFolder', async (_, { workspacePath, projectName, projectDescription }) => {
+  // Project IPC Handlers
+  ipcMain.handle('fs:createProjectFolder', async (_, { workspacePath, projectName, projectDescription, userEmail }) => {
     const projectPath = join(workspacePath, projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase())
     const folders = ['Reports', 'Roadmaps', 'Assets', 'Memory', 'Attachments', 'Exports']
 
@@ -95,6 +108,10 @@ app.whenReady().then(() => {
       for (const folder of folders) {
         await fs.ensureDir(join(projectPath, folder))
       }
+
+      // Save to SQLite
+      const stmt = db.prepare('INSERT INTO projects (user_email, name, path, description) VALUES (?, ?, ?, ?)')
+      stmt.run(userEmail, projectName, projectPath, projectDescription)
 
       const projectData = {
         name: projectName,
@@ -115,6 +132,14 @@ app.whenReady().then(() => {
     } catch (error: any) {
       return { success: false, error: error.message }
     }
+  })
+
+  // Filesystem Helpers
+  ipcMain.handle('dialog:openDirectory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    return canceled ? null : filePaths[0]
   })
 
   ipcMain.handle('fs:saveReport', async (_, { projectPath, filename, content }) => {
@@ -154,6 +179,7 @@ app.whenReady().then(() => {
     return join(...args)
   })
 
+  // AI Provider
   ipcMain.handle('ai:setKey', (_, key) => {
     NVIDIA_API_KEY = key
     return true

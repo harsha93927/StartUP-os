@@ -9,8 +9,8 @@ const api = {
 
   // Filesystem
   selectFolder: () => ipcRenderer.invoke('dialog:openDirectory'),
-  createProjectFolder: (workspacePath: string, projectName: string, projectDescription: string) =>
-    ipcRenderer.invoke('fs:createProjectFolder', { workspacePath, projectName, projectDescription }),
+  createProjectFolder: (workspacePath: string, projectName: string, projectDescription: string, userEmail: string) =>
+    ipcRenderer.invoke('fs:createProjectFolder', { workspacePath, projectName, projectDescription, userEmail }),
   saveReport: (projectPath: string, filename: string, content: string) =>
     ipcRenderer.invoke('fs:saveReport', { projectPath, filename, content }),
   readJson: (projectPath: string, relativePath: string) =>

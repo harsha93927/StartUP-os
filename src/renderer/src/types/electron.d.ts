@@ -5,7 +5,7 @@ interface ElectronAPI {
 
   // Filesystem
   selectFolder: () => Promise<string | null>
-  createProjectFolder: (workspacePath: string, projectName: string, projectDescription: string) => Promise<{ success: boolean; path: string; error?: string }>
+  createProjectFolder: (workspacePath: string, projectName: string, projectDescription: string, userEmail: string) => Promise<{ success: boolean; path: string; error?: string }>
   saveReport: (projectPath: string, filename: string, content: string) => Promise<{ success: boolean; error?: string }>
   readJson: (projectPath: string, relativePath: string) => Promise<any>
   writeJson: (projectPath: string, relativePath: string, data: any) => Promise<{ success: boolean; error?: string }>

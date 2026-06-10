@@ -29,23 +29,19 @@ function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [isCreatingProject, setIsCreatingProject] = useState(false)
 
-  // Project-specific navigation state
   const [projectPhase, setProjectPhase] = useState<ProjectPhase>(ProjectPhase.PLANNER_INITIALIZATION)
   const [activeTab, setActiveTab] = useState<'today' | 'roadmap' | 'reports'>('today')
 
-  // Data state
   const [roadmap, setRoadmap] = useState<RoadmapBlock[]>([])
   const [memory, setMemory] = useState<any>(null)
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
 
-  // UI state
   const [selectedBlock, setSelectedBlock] = useState<RoadmapBlock | null>(null)
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
 
   const { user, setUser, workspacePath, setWorkspacePath, currentProject, setCurrentProject, logout } = useAppStore()
 
-  // Load project data when a project is selected
   useEffect(() => {
     if (currentProject) {
       loadProjectData()
@@ -75,7 +71,7 @@ function App() {
   const handleCreateProject = async (data: { name: string; description: string }, _attachments: File[]) => {
     setIsCreatingProject(true)
     try {
-      const result = await window.api.createProjectFolder(workspacePath!, data.name, data.description)
+      const result = await window.api.createProjectFolder(workspacePath!, data.name, data.description, user!.email)
       if (result.success) {
         setCurrentProject({
           name: data.name,
@@ -109,8 +105,6 @@ function App() {
     }
   }
 
-  // --- TOP LEVEL ROUTING ---
-
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />
   }
@@ -126,8 +120,6 @@ function App() {
   if (!currentProject) {
     return <ProjectCreation onCreateProject={handleCreateProject} isLoading={isCreatingProject} />
   }
-
-  // --- PROJECT WORKFLOW ROUTING ---
 
   switch (projectPhase) {
     case ProjectPhase.PLANNER_INITIALIZATION:
@@ -155,8 +147,7 @@ function App() {
 
     case ProjectPhase.DASHBOARD:
       return (
-        <div className="flex h-screen bg-background overflow-hidden text-foreground">
-          {/* SIDEBAR */}
+        <div className="flex h-screen bg-background overflow-hidden text-foreground font-sans">
           <div className="w-64 border-r border-border flex flex-col p-6 space-y-8 bg-secondary/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -221,7 +212,6 @@ function App() {
             </div>
           </div>
 
-          {/* MAIN CONTENT */}
           <main className="flex-1 overflow-y-auto bg-background p-8 md:p-12">
              <AnimatePresence mode="wait">
                <motion.div
