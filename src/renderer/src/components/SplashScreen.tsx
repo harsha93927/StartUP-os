@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useEffect } from 'react'
-import logo from '../assets/logo.png'
+import logo from '@renderer/assets/logo.png'
 
 interface SplashScreenProps {
   onComplete: () => void
@@ -10,7 +10,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onComplete()
-    }, 3500) // 1s for logo, 1s for text, 1s hold, 0.5s buffer
+    }, 3500)
 
     return () => clearTimeout(timer)
   }, [onComplete])
@@ -18,7 +18,6 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50">
       <div className="relative">
-        {/* Subtle glow behind logo */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.15, scale: 1.2 }}

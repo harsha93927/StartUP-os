@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Upload, X, FileText, Loader2 } from 'lucide-react'
-import logo from '../assets/logo.png'
+import logo from '@renderer/assets/logo.png'
 
 const projectSchema = z.object({
   name: z.string()
@@ -39,7 +39,6 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
   const descriptionValue = watch("description") || ""
   const projectName = watch("name") || ""
 
-  // Auto-grow textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -92,7 +91,6 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-12 pb-24">
-            {/* SECTION 1 - PROJECT NAME */}
             <div className="space-y-4">
               <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Project Name</label>
               <input
@@ -104,7 +102,6 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
               {errors.name && <p className="text-sm text-red-500 font-medium">{errors.name.message}</p>}
             </div>
 
-            {/* SECTION 2 - PROJECT DESCRIPTION */}
             <div className="space-y-4">
               <div className="flex justify-between items-end">
                 <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Description</label>
@@ -125,7 +122,6 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
               {errors.description && <p className="text-sm text-red-500 font-medium">{errors.description.message}</p>}
             </div>
 
-            {/* SECTION 3 - OPTIONAL ATTACHMENTS */}
             <div className="space-y-4">
               <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Optional Attachments</label>
 
@@ -158,7 +154,6 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
               </div>
             </div>
 
-            {/* SECTION 4 - CREATE PROJECT BUTTON */}
             <div className="pt-8">
               <button
                 disabled={!isValid || isLoading}
