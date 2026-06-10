@@ -16,14 +16,16 @@ const api = {
     ipcRenderer.invoke('fs:saveReport', { projectPath, filename, content }),
   readJson: (projectPath: string, relativePath: string) =>
     ipcRenderer.invoke('fs:readJson', { projectPath, relativePath }),
+  readText: (projectPath: string, relativePath: string) =>
+    ipcRenderer.invoke('fs:readText', { projectPath, relativePath }),
   writeJson: (projectPath: string, relativePath: string, data: any) =>
     ipcRenderer.invoke('fs:writeJson', { projectPath, relativePath, data }),
   openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path),
   join: (...args: string[]) => ipcRenderer.invoke('path:join', ...args),
 
   // Search
-  searchQuery: (projectPath: string, query: string) => ipcRenderer.invoke('search:query', { projectPath, query }),
-  searchIndex: (data: { projectPath: string, type: string, title: string, content: string }) => ipcRenderer.invoke('search:index', data),
+  searchQuery: (payload: { query: string }) => ipcRenderer.invoke('search:query', payload),
+  searchIndex: (payload: { type: string, title: string, content: string }) => ipcRenderer.invoke('search:index', payload),
 
   // AI
   setAiKey: (key: string) => ipcRenderer.invoke('ai:setKey', key),

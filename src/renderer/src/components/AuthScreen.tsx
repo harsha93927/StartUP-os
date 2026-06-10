@@ -123,7 +123,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground" htmlFor="email">Email</label>
                 <input
                   {...register("email")}
-                  className={`flex h-11 w-full rounded-xl border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 \${errors.email ? 'border-red-500' : 'border-border hover:border-muted-foreground/50'} transition-all`}
+                  className={`flex h-11 w-full rounded-xl border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.email ? 'border-red-500' : 'border-border hover:border-muted-foreground/50'} transition-all`}
                   id="email"
                   placeholder="name@company.com"
                   type="email"
@@ -140,7 +140,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 </div>
                 <input
                   {...register("password")}
-                  className={`flex h-11 w-full rounded-xl border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 \${errors.password ? 'border-red-500' : 'border-border hover:border-muted-foreground/50'} transition-all`}
+                  className={`flex h-11 w-full rounded-xl border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.password ? 'border-red-500' : 'border-border hover:border-muted-foreground/50'} transition-all`}
                   id="password"
                   type="password"
                 />

@@ -34,7 +34,7 @@ export async function generateAgentReport(agentId: string, projectContext: any):
         { role: 'system', content: systemPrompt },
         { role: 'user', content: 'Generate your specialist report based on the project context.' }
       ],
-      model: 'meta/llama-3.1-405b-instruct'
+      model: 'meta/llama-3.1-8b-instruct'
     })
 
     if (!response || !response.choices || !response.choices[0]) {

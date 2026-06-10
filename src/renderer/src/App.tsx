@@ -18,7 +18,9 @@ import { RoadmapBlock, generateRoadmap } from './lib/roadmap'
 import { LayoutDashboard, Map, FileText, Settings, LogOut, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-enum ProjectPhase {
+enum AppPhase {
+  AUTHENTICATION,
+  WORKSPACE_SETUP,
   PROJECT_SELECTION,
   PROJECT_CREATION,
   PLANNER_INITIALIZATION,
@@ -31,7 +33,7 @@ enum ProjectPhase {
 function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [isCreatingProject, setIsCreatingProject] = useState(false)
-  const [projectPhase, setProjectPhase] = useState<ProjectPhase>(ProjectPhase.PROJECT_SELECTION)
+  const [phase, setPhase] = useState<AppPhase>(AppPhase.AUTHENTICATION)
   const [activeTab, setActiveTab] = useState<'today' | 'roadmap' | 'reports'>('today')
 
   const [projects, setProjects] = useState<any[]>([])
@@ -45,26 +47,37 @@ function App() {
 
   const { user, setUser, workspacePath, setWorkspacePath, currentProject, setCurrentProject, logout } = useAppStore()
 
+  // Centralized State & Phase Management
   useEffect(() => {
-    if (user && workspacePath) {
-      fetchProjects()
-    }
-  }, [user, workspacePath])
+    if (showSplash) return
 
-  useEffect(() => {
-    if (currentProject) {
-      loadProjectData()
+    if (!user) {
+      setPhase(AppPhase.AUTHENTICATION)
+    } else if (!workspacePath) {
+      setPhase(AppPhase.WORKSPACE_SETUP)
+    } else if (!currentProject) {
+      // Fetch projects to decide between selection and creation
+      fetchProjects().then(projs => {
+        if (projs && projs.length > 0 && phase !== AppPhase.PROJECT_CREATION) {
+          setPhase(AppPhase.PROJECT_SELECTION)
+        } else if (phase !== AppPhase.PROJECT_SELECTION) {
+          setPhase(AppPhase.PROJECT_CREATION)
+        }
+      })
     } else {
-      setProjectPhase(ProjectPhase.PROJECT_SELECTION)
+       // We have a project, determine its state
+       loadProjectData()
     }
-  }, [currentProject?.path])
+  }, [showSplash, user, workspacePath, currentProject])
 
   const fetchProjects = async () => {
-    if (!user) return
+    if (!user) return []
     const result = await window.api.getProjects(user.email)
     if (result.success) {
       setProjects(result.projects)
+      return result.projects
     }
+    return []
   }
 
   const loadProjectData = async () => {
@@ -77,12 +90,12 @@ function App() {
 
       if (roadmapData && roadmapData.length > 0) {
         setRoadmap(roadmapData)
-        setProjectPhase(ProjectPhase.DASHBOARD)
-      } else {
-        setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
+        setPhase(AppPhase.DASHBOARD)
+      } else if (phase < AppPhase.PLANNER_INITIALIZATION || phase > AppPhase.STRATEGY_GENERATION) {
+        setPhase(AppPhase.PLANNER_INITIALIZATION)
       }
     } catch (err) {
-      setProjectPhase(ProjectPhase.PLANNER_INITIALIZATION)
+      setPhase(AppPhase.PLANNER_INITIALIZATION)
     }
   }
 
@@ -96,7 +109,6 @@ function App() {
           path: result.path,
           description: data.description
         })
-        fetchProjects()
       }
     } catch (error) {
       console.error(error)
@@ -108,7 +120,7 @@ function App() {
   const handleAgentSelectionComplete = async (ids: string[], apiKey: string) => {
     await window.api.setAiKey(apiKey)
     setSelectedAgentIds(ids)
-    setProjectPhase(ProjectPhase.STRATEGY_GENERATION)
+    setPhase(AppPhase.STRATEGY_GENERATION)
   }
 
   const handleStrategyComplete = async () => {
@@ -118,7 +130,7 @@ function App() {
       const blocks = await generateRoadmap(currentProject, memoryData)
       setRoadmap(blocks)
       await window.api.writeJson(currentProject!.path, 'Memory/roadmap.json', blocks)
-      setProjectPhase(ProjectPhase.DASHBOARD)
+      setPhase(AppPhase.DASHBOARD)
     } catch (error) {
       console.error(error)
     }
@@ -128,42 +140,35 @@ function App() {
     return <SplashScreen onComplete={() => setShowSplash(false)} />
   }
 
-  if (!user) {
-    return <AuthScreen onAuthSuccess={(userData) => setUser(userData)} />
-  }
+  switch (phase) {
+    case AppPhase.AUTHENTICATION:
+      return <AuthScreen onAuthSuccess={(userData) => setUser(userData)} />
 
-  if (!workspacePath) {
-    return <WorkspaceSetup onWorkspaceSelected={setWorkspacePath} />
-  }
+    case AppPhase.WORKSPACE_SETUP:
+      return <WorkspaceSetup onWorkspaceSelected={setWorkspacePath} />
 
-  switch (projectPhase) {
-    case ProjectPhase.PROJECT_SELECTION:
+    case AppPhase.PROJECT_SELECTION:
       return (
         <ProjectSelection
           projects={projects}
           onSelect={(p) => setCurrentProject(p)}
-          onNew={() => setProjectPhase(ProjectPhase.PROJECT_CREATION)}
+          onNew={() => setPhase(AppPhase.PROJECT_CREATION)}
         />
       )
 
-    case ProjectPhase.PROJECT_CREATION:
+    case AppPhase.PROJECT_CREATION:
       return <ProjectCreation onCreateProject={handleCreateProject} isLoading={isCreatingProject} />
 
-    case ProjectPhase.PLANNER_INITIALIZATION:
-      return (
-        <PlannerInitialization
-          projectName={currentProject?.name || ''}
-          onComplete={() => setProjectPhase(ProjectPhase.CLARIFICATION)}
-        />
-      )
+    case AppPhase.PLANNER_INITIALIZATION:
+      return <PlannerInitialization projectName={currentProject?.name || ''} onComplete={() => setPhase(AppPhase.CLARIFICATION)} />
 
-    case ProjectPhase.CLARIFICATION:
-      return <ClarificationPhase onComplete={() => setProjectPhase(ProjectPhase.AGENT_SELECTION)} />
+    case AppPhase.CLARIFICATION:
+      return <ClarificationPhase onComplete={() => setPhase(AppPhase.AGENT_SELECTION)} />
 
-    case ProjectPhase.AGENT_SELECTION:
+    case AppPhase.AGENT_SELECTION:
       return <AgentSelection onComplete={handleAgentSelectionComplete} />
 
-    case ProjectPhase.STRATEGY_GENERATION:
+    case AppPhase.STRATEGY_GENERATION:
       return (
         <StrategyGeneration
           projectContext={currentProject}
@@ -172,7 +177,7 @@ function App() {
         />
       )
 
-    case ProjectPhase.DASHBOARD:
+    case AppPhase.DASHBOARD:
       return (
         <div className="flex h-screen bg-background overflow-hidden text-foreground font-sans tracking-tight">
           <div className="w-64 border-r border-border flex flex-col p-6 space-y-8 bg-secondary/30">
@@ -226,7 +231,10 @@ function App() {
                   <kbd className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border group-hover:bg-background tracking-tighter">⌘K</kbd>
                </button>
                <button
-                  onClick={() => setCurrentProject(null)}
+                  onClick={() => {
+                    setCurrentProject(null)
+                    setPhase(AppPhase.PROJECT_SELECTION)
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                >
                   <FolderIcon className="w-4 h-4" />

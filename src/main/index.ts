@@ -82,8 +82,7 @@ app.whenReady().then(() => {
   ipcMain.handle('auth:register', async (_, { email, password }) => {
     try {
       const users = await fs.readJson(USERS_FILE)
-      if (users.find(u => u.email === email)) return { success: false, error: 'User already exists' }
-
+      if (users.find(u => u.email === email)) return { success: false, error: 'Email already registered' }
       const hashedPassword = await bcrypt.hash(password, 10)
       users.push({ email, password: hashedPassword, created_at: new Date().toISOString() })
       await fs.writeJson(USERS_FILE, users)
@@ -98,10 +97,8 @@ app.whenReady().then(() => {
       const users = await fs.readJson(USERS_FILE)
       const user = users.find(u => u.email === email)
       if (!user) return { success: false, error: 'Invalid email or password' }
-
       const isValid = await bcrypt.compare(password, user.password)
       if (!isValid) return { success: false, error: 'Invalid email or password' }
-
       return { success: true, user: { email: user.email } }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -118,7 +115,7 @@ app.whenReady().then(() => {
     }
   })
 
-  // Search IPC Handlers (In-memory fallback for portability)
+  // Search IPC Handlers
   let searchIndex: any[] = []
   ipcMain.handle('search:query', async (_, { query }) => {
     const q = query.toLowerCase()
@@ -127,7 +124,7 @@ app.whenReady().then(() => {
     ).map(item => ({
       type: item.type,
       title: item.title,
-      snippet: item.content.substring(0, 60) + '...'
+      snippet: item.content.substring(0, 80)
     }))
     return { success: true, results: results.slice(0, 10) }
   })
@@ -148,28 +145,13 @@ app.whenReady().then(() => {
       for (const folder of folders) await fs.ensureDir(join(projectPath, folder))
 
       const projects = await fs.readJson(PROJECTS_FILE)
-      projects.push({
-        user_email: userEmail,
-        name: projectName,
-        path: projectPath,
-        description: projectDescription,
-        created_at: new Date().toISOString()
-      })
+      projects.push({ user_email: userEmail, name: projectName, path: projectPath, description: projectDescription, created_at: new Date().toISOString() })
       await fs.writeJson(PROJECTS_FILE, projects)
 
-      const projectData = {
-        name: projectName,
-        description: projectDescription,
-        createdAt: new Date().toISOString(),
-        version: '1.0.0',
-        status: 'planning',
-        path: projectPath
-      }
+      const projectData = { name: projectName, description: projectDescription, createdAt: new Date().toISOString(), version: '1.0.0', status: 'planning', path: projectPath }
       await fs.writeJson(join(projectPath, 'project.json'), projectData, { spaces: 2 })
 
-      const memoryData = {
-        facts: [], competitors: [], risks: [], opportunities: [], decisions: [], roadmaps: [], milestones: [], reports: []
-      }
+      const memoryData = { facts: [], competitors: [], risks: [], opportunities: [], decisions: [], roadmaps: [], milestones: [], reports: [] }
       await fs.writeJson(join(projectPath, 'Memory', 'memory.json'), memoryData, { spaces: 2 })
 
       return { success: true, path: projectPath }
@@ -197,6 +179,14 @@ app.whenReady().then(() => {
   ipcMain.handle('fs:readJson', async (_, { projectPath, relativePath }) => {
     try {
       return await fs.readJson(join(projectPath, relativePath))
+    } catch (error: any) {
+      throw new Error(error.message)
+    }
+  })
+
+  ipcMain.handle('fs:readText', async (_, { projectPath, relativePath }) => {
+    try {
+      return await fs.readFile(join(projectPath, relativePath), 'utf8')
     } catch (error: any) {
       throw new Error(error.message)
     }
@@ -231,7 +221,7 @@ app.whenReady().then(() => {
     return true
   })
 
-  ipcMain.handle('ai:chat', async (_, { messages, model = 'meta/llama-3.1-405b-instruct' }) => {
+  ipcMain.handle('ai:chat', async (_, { messages, model = 'meta/llama-3.1-8b-instruct' }) => {
     if (!NVIDIA_API_KEY) throw new Error('API Key not set')
     try {
       const response = await axios.post(

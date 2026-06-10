@@ -44,8 +44,8 @@ export default function CommandPalette({ isOpen, onClose, onAction, projectPath 
   useEffect(() => {
     const search = async () => {
       if (query.length > 2 && projectPath) {
-        const res = await window.api.searchQuery(projectPath, query)
-        if (res.success) {
+        const res = await window.api.searchQuery({ query })
+        if (res.success && res.results) {
           setResults(res.results)
         }
       } else {
@@ -99,12 +99,12 @@ export default function CommandPalette({ isOpen, onClose, onAction, projectPath 
                     <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Search Results</p>
                     <div className="space-y-1">
                       {results.map((res, i) => {
-                        const Icon = TYPE_ICONS[res.type] || Zap
+                        const Icon = TYPE_ICONS[res.type as string] || Zap
                         return (
                           <button
                             key={i}
                             onClick={() => {
-                              onAction(`open_\${res.type}`, res)
+                              onAction(`open_${res.type}`, res)
                               onClose()
                             }}
                             className="w-full flex flex-col p-3 rounded-xl hover:bg-secondary text-left transition-colors group"
@@ -134,14 +134,14 @@ export default function CommandPalette({ isOpen, onClose, onAction, projectPath 
                             onAction(cmd.id)
                             onClose()
                           }}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors \${
+                          className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${
                             cmd.danger
                             ? 'hover:bg-red-50 text-red-500'
                             : 'hover:bg-secondary text-foreground'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                             <Icon className={`w-4 h-4 \${cmd.danger ? 'text-red-500' : 'text-muted-foreground'}`} />
+                             <Icon className={`w-4 h-4 ${cmd.danger ? 'text-red-500' : 'text-muted-foreground'}`} />
                              <span className="text-sm font-medium">{cmd.label}</span>
                           </div>
                           {cmd.shortcut && (
