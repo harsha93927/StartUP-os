@@ -4,7 +4,6 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs-extra'
 import axios from 'axios'
-import Database from 'better-sqlite3'
 import bcrypt from 'bcryptjs'
 
 function createWindow(): void {
@@ -46,41 +45,19 @@ function createWindow(): void {
   }
 }
 
-// Database Setup
-const dbPath = join(app.getPath('userData'), 'startup-os.db')
-const db = new Database(dbPath)
+// Portable DB Implementation
+const DB_DIR = app.getPath('userData')
+const USERS_FILE = join(DB_DIR, 'users_db.json')
+const PROJECTS_FILE = join(DB_DIR, 'projects_db.json')
+const SETTINGS_FILE = join(DB_DIR, 'settings_db.json')
 
-// Initialize Tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS projects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_email TEXT NOT NULL,
-    name TEXT NOT NULL,
-    path TEXT NOT NULL,
-    description TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_email) REFERENCES users(email)
-  );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value BLOB NOT NULL
-  );
-
-  CREATE VIRTUAL TABLE IF NOT EXISTS project_search USING fts5(
-    project_path,
-    type,
-    title,
-    content
-  );
-`)
+const initDB = () => {
+  fs.ensureDirSync(DB_DIR)
+  if (!fs.existsSync(USERS_FILE)) fs.writeJsonSync(USERS_FILE, [])
+  if (!fs.existsSync(PROJECTS_FILE)) fs.writeJsonSync(PROJECTS_FILE, [])
+  if (!fs.existsSync(SETTINGS_FILE)) fs.writeJsonSync(SETTINGS_FILE, {})
+}
+initDB()
 
 let NVIDIA_API_KEY = ''
 
@@ -91,39 +68,40 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  fs.ensureDirSync(app.getPath('userData'))
-
   // Load encrypted key
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('nvidia_api_key') as any
-    if (row && safeStorage.isEncryptionAvailable()) {
-      NVIDIA_API_KEY = safeStorage.decryptString(row.value)
+    const settings = fs.readJsonSync(SETTINGS_FILE)
+    if (settings.nvidia_api_key && safeStorage.isEncryptionAvailable()) {
+      NVIDIA_API_KEY = safeStorage.decryptString(Buffer.from(settings.nvidia_api_key, 'base64'))
     }
   } catch (err) {
-    console.error('Failed to load encrypted key:', err)
+    console.error('Failed to load key:', err)
   }
 
   // Auth IPC Handlers
   ipcMain.handle('auth:register', async (_, { email, password }) => {
     try {
+      const users = await fs.readJson(USERS_FILE)
+      if (users.find(u => u.email === email)) return { success: false, error: 'User already exists' }
+
       const hashedPassword = await bcrypt.hash(password, 10)
-      const stmt = db.prepare('INSERT INTO users (email, password) VALUES (?, ?)')
-      stmt.run(email, hashedPassword)
+      users.push({ email, password: hashedPassword, created_at: new Date().toISOString() })
+      await fs.writeJson(USERS_FILE, users)
       return { success: true, user: { email } }
     } catch (error: any) {
-      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        return { success: false, error: 'Email already exists' }
-      }
       return { success: false, error: error.message }
     }
   })
 
   ipcMain.handle('auth:login', async (_, { email, password }) => {
     try {
-      const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any
+      const users = await fs.readJson(USERS_FILE)
+      const user = users.find(u => u.email === email)
       if (!user) return { success: false, error: 'Invalid email or password' }
+
       const isValid = await bcrypt.compare(password, user.password)
       if (!isValid) return { success: false, error: 'Invalid email or password' }
+
       return { success: true, user: { email: user.email } }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -132,38 +110,32 @@ app.whenReady().then(() => {
 
   ipcMain.handle('auth:getProjects', async (_, email) => {
     try {
-      const projects = db.prepare('SELECT * FROM projects WHERE user_email = ?').all(email)
-      return { success: true, projects }
+      const projects = await fs.readJson(PROJECTS_FILE)
+      const userProjects = projects.filter(p => p.user_email === email)
+      return { success: true, projects: userProjects }
     } catch (error: any) {
       return { success: false, error: error.message }
     }
   })
 
-  // Search IPC Handler (FTS5)
-  ipcMain.handle('search:query', async (_, { projectPath, query }) => {
-    try {
-      const results = db.prepare(`
-        SELECT type, title, snippet(project_search, 3, '...', '...', '...', 10) as snippet
-        FROM project_search
-        WHERE project_path = ? AND project_search MATCH ?
-      `).all(projectPath, query)
-      return { success: true, results }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
+  // Search IPC Handlers (In-memory fallback for portability)
+  let searchIndex: any[] = []
+  ipcMain.handle('search:query', async (_, { query }) => {
+    const q = query.toLowerCase()
+    const results = searchIndex.filter(item =>
+      item.title.toLowerCase().includes(q) || item.content.toLowerCase().includes(q)
+    ).map(item => ({
+      type: item.type,
+      title: item.title,
+      snippet: item.content.substring(0, 60) + '...'
+    }))
+    return { success: true, results: results.slice(0, 10) }
   })
 
-  ipcMain.handle('search:index', async (_, { projectPath, type, title, content }) => {
-    try {
-      const indexTransaction = db.transaction(() => {
-        db.prepare('DELETE FROM project_search WHERE project_path = ? AND title = ?').run(projectPath, title)
-        db.prepare('INSERT INTO project_search (project_path, type, title, content) VALUES (?, ?, ?, ?)').run(projectPath, type, title, content)
-      })
-      indexTransaction()
-      return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
+  ipcMain.handle('search:index', async (_, { type, title, content }) => {
+    searchIndex = searchIndex.filter(i => i.title !== title)
+    searchIndex.push({ type, title, content })
+    return { success: true }
   })
 
   // Project IPC Handlers
@@ -171,14 +143,19 @@ app.whenReady().then(() => {
     const projectPath = join(workspacePath, projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase())
     const folders = ['Reports', 'Roadmaps', 'Assets', 'Memory', 'Attachments', 'Exports']
 
-    const createTransaction = db.transaction(async () => {
+    try {
       await fs.ensureDir(projectPath)
-      for (const folder of folders) {
-        await fs.ensureDir(join(projectPath, folder))
-      }
+      for (const folder of folders) await fs.ensureDir(join(projectPath, folder))
 
-      db.prepare('INSERT INTO projects (user_email, name, path, description) VALUES (?, ?, ?, ?)')
-        .run(userEmail, projectName, projectPath, projectDescription)
+      const projects = await fs.readJson(PROJECTS_FILE)
+      projects.push({
+        user_email: userEmail,
+        name: projectName,
+        path: projectPath,
+        description: projectDescription,
+        created_at: new Date().toISOString()
+      })
+      await fs.writeJson(PROJECTS_FILE, projects)
 
       const projectData = {
         name: projectName,
@@ -195,11 +172,6 @@ app.whenReady().then(() => {
       }
       await fs.writeJson(join(projectPath, 'Memory', 'memory.json'), memoryData, { spaces: 2 })
 
-      db.prepare('INSERT INTO project_search (project_path, type, title, content) VALUES (?, ?, ?, ?)').run(projectPath, 'project', projectName, projectDescription)
-    })
-
-    try {
-      await createTransaction()
       return { success: true, path: projectPath }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -208,9 +180,7 @@ app.whenReady().then(() => {
 
   // Filesystem Helpers
   ipcMain.handle('dialog:openDirectory', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openDirectory']
-    })
+    const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return canceled ? null : filePaths[0]
   })
 
@@ -226,8 +196,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('fs:readJson', async (_, { projectPath, relativePath }) => {
     try {
-      const filePath = join(projectPath, relativePath)
-      return await fs.readJson(filePath)
+      return await fs.readJson(join(projectPath, relativePath))
     } catch (error: any) {
       throw new Error(error.message)
     }
@@ -235,8 +204,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('fs:writeJson', async (_, { projectPath, relativePath, data }) => {
     try {
-      const filePath = join(projectPath, relativePath)
-      await fs.writeJson(filePath, data, { spaces: 2 })
+      await fs.writeJson(join(projectPath, relativePath), data, { spaces: 2 })
       return { success: true }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -251,12 +219,14 @@ app.whenReady().then(() => {
     return join(...args)
   })
 
-  // AI Provider with Encryption
-  ipcMain.handle('ai:setKey', (_, key) => {
+  // AI Provider
+  ipcMain.handle('ai:setKey', async (_, key) => {
     NVIDIA_API_KEY = key
     if (safeStorage.isEncryptionAvailable()) {
        const encrypted = safeStorage.encryptString(key)
-       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('nvidia_api_key', encrypted)
+       const settings = await fs.readJson(SETTINGS_FILE)
+       settings.nvidia_api_key = encrypted.toString('base64')
+       await fs.writeJson(SETTINGS_FILE, settings)
     }
     return true
   })
@@ -284,7 +254,5 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  if (process.platform !== 'darwin') app.quit()
 })
