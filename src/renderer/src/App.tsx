@@ -45,7 +45,6 @@ function App() {
 
   const { user, setUser, workspacePath, setWorkspacePath, currentProject, setCurrentProject, logout } = useAppStore()
 
-  // Fetch projects when user and workspace are ready
   useEffect(() => {
     if (user && workspacePath) {
       fetchProjects()
@@ -230,7 +229,7 @@ function App() {
                   onClick={() => setCurrentProject(null)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                >
-                  <Folder className="w-4 h-4" />
+                  <FolderIcon className="w-4 h-4" />
                   Projects
                </button>
                <button
@@ -272,10 +271,7 @@ function App() {
                  {activeTab === 'reports' && (
                    <ReportsTab
                      reports={memory?.reports || []}
-                     onOpenReport={async (filename) => {
-                        const path = await window.api.join(currentProject!.path, 'Reports', filename)
-                        await window.api.openPath(path)
-                     }}
+                     projectPath={currentProject!.path}
                    />
                  )}
                </motion.div>
@@ -292,10 +288,14 @@ function App() {
           <CommandPalette
             isOpen={isCommandPaletteOpen}
             onClose={() => setIsCommandPaletteOpen(false)}
-            onAction={(action) => {
+            projectPath={currentProject?.path}
+            onAction={(action, data) => {
               if (action === 'toggle') setIsCommandPaletteOpen(true)
               if (action === 'view_roadmap') setActiveTab('roadmap')
               if (action === 'open_reports') setActiveTab('reports')
+              if (action.startsWith('open_') && data) {
+                 setActiveTab('reports')
+              }
             }}
           />
         </div>
@@ -308,7 +308,7 @@ function App() {
 
 export default App
 
-function Folder({ className }: { className?: string }) {
+function FolderIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}

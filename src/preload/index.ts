@@ -21,6 +21,10 @@ const api = {
   openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path),
   join: (...args: string[]) => ipcRenderer.invoke('path:join', ...args),
 
+  // Search
+  searchQuery: (projectPath: string, query: string) => ipcRenderer.invoke('search:query', { projectPath, query }),
+  searchIndex: (data: { projectPath: string, type: string, title: string, content: string }) => ipcRenderer.invoke('search:index', data),
+
   // AI
   setAiKey: (key: string) => ipcRenderer.invoke('ai:setKey', key),
   aiChat: (payload: { messages: any[], model?: string }) => ipcRenderer.invoke('ai:chat', payload)

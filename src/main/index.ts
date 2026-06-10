@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, safeStorage } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -15,6 +15,12 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#ffffff',
+      symbolColor: '#000000',
+      height: 32
+    },
     title: 'Startup OS',
     icon: join(__dirname, '../../build/icon.ico'),
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -62,6 +68,18 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_email) REFERENCES users(email)
   );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value BLOB NOT NULL
+  );
+
+  CREATE VIRTUAL TABLE IF NOT EXISTS project_search USING fts5(
+    project_path,
+    type,
+    title,
+    content
+  );
 `)
 
 let NVIDIA_API_KEY = ''
@@ -73,8 +91,17 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Ensure user data dir exists
   fs.ensureDirSync(app.getPath('userData'))
+
+  // Load encrypted key
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('nvidia_api_key') as any
+    if (row && safeStorage.isEncryptionAvailable()) {
+      NVIDIA_API_KEY = safeStorage.decryptString(row.value)
+    }
+  } catch (err) {
+    console.error('Failed to load encrypted key:', err)
+  }
 
   // Auth IPC Handlers
   ipcMain.handle('auth:register', async (_, { email, password }) => {
@@ -95,10 +122,8 @@ app.whenReady().then(() => {
     try {
       const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any
       if (!user) return { success: false, error: 'Invalid email or password' }
-
       const isValid = await bcrypt.compare(password, user.password)
       if (!isValid) return { success: false, error: 'Invalid email or password' }
-
       return { success: true, user: { email: user.email } }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -114,20 +139,46 @@ app.whenReady().then(() => {
     }
   })
 
+  // Search IPC Handler (FTS5)
+  ipcMain.handle('search:query', async (_, { projectPath, query }) => {
+    try {
+      const results = db.prepare(`
+        SELECT type, title, snippet(project_search, 3, '...', '...', '...', 10) as snippet
+        FROM project_search
+        WHERE project_path = ? AND project_search MATCH ?
+      `).all(projectPath, query)
+      return { success: true, results }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('search:index', async (_, { projectPath, type, title, content }) => {
+    try {
+      const indexTransaction = db.transaction(() => {
+        db.prepare('DELETE FROM project_search WHERE project_path = ? AND title = ?').run(projectPath, title)
+        db.prepare('INSERT INTO project_search (project_path, type, title, content) VALUES (?, ?, ?, ?)').run(projectPath, type, title, content)
+      })
+      indexTransaction()
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // Project IPC Handlers
   ipcMain.handle('fs:createProjectFolder', async (_, { workspacePath, projectName, projectDescription, userEmail }) => {
     const projectPath = join(workspacePath, projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase())
     const folders = ['Reports', 'Roadmaps', 'Assets', 'Memory', 'Attachments', 'Exports']
 
-    try {
+    const createTransaction = db.transaction(async () => {
       await fs.ensureDir(projectPath)
       for (const folder of folders) {
         await fs.ensureDir(join(projectPath, folder))
       }
 
-      // Save to SQLite
-      const stmt = db.prepare('INSERT INTO projects (user_email, name, path, description) VALUES (?, ?, ?, ?)')
-      stmt.run(userEmail, projectName, projectPath, projectDescription)
+      db.prepare('INSERT INTO projects (user_email, name, path, description) VALUES (?, ?, ?, ?)')
+        .run(userEmail, projectName, projectPath, projectDescription)
 
       const projectData = {
         name: projectName,
@@ -144,6 +195,11 @@ app.whenReady().then(() => {
       }
       await fs.writeJson(join(projectPath, 'Memory', 'memory.json'), memoryData, { spaces: 2 })
 
+      db.prepare('INSERT INTO project_search (project_path, type, title, content) VALUES (?, ?, ?, ?)').run(projectPath, 'project', projectName, projectDescription)
+    })
+
+    try {
+      await createTransaction()
       return { success: true, path: projectPath }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -195,31 +251,23 @@ app.whenReady().then(() => {
     return join(...args)
   })
 
-  // AI Provider
+  // AI Provider with Encryption
   ipcMain.handle('ai:setKey', (_, key) => {
     NVIDIA_API_KEY = key
+    if (safeStorage.isEncryptionAvailable()) {
+       const encrypted = safeStorage.encryptString(key)
+       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('nvidia_api_key', encrypted)
+    }
     return true
   })
 
   ipcMain.handle('ai:chat', async (_, { messages, model = 'meta/llama-3.1-405b-instruct' }) => {
     if (!NVIDIA_API_KEY) throw new Error('API Key not set')
-
     try {
       const response = await axios.post(
         'https://integrate.api.nvidia.com/v1/chat/completions',
-        {
-          model,
-          messages,
-          temperature: 0.2,
-          top_p: 0.7,
-          max_tokens: 2048,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
+        { model, messages, temperature: 0.2, top_p: 0.7, max_tokens: 2048 },
+        { headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' } }
       )
       return response.data
     } catch (error: any) {

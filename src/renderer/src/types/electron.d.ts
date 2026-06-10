@@ -13,6 +13,10 @@ interface ElectronAPI {
   openPath: (path: string) => Promise<void>
   join: (...args: string[]) => Promise<string>
 
+  // Search
+  searchQuery: (projectPath: string, query: string) => Promise<{ success: boolean; results: any[]; error?: string }>
+  searchIndex: (data: { projectPath: string, type: string, title: string, content: string }) => Promise<{ success: boolean; error?: string }>
+
   // AI
   setAiKey: (key: string) => Promise<boolean>
   aiChat: (payload: { messages: any[], model?: string }) => Promise<any>

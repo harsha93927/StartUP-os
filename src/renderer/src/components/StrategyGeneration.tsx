@@ -26,27 +26,35 @@ export default function StrategyGeneration({ projectContext, selectedAgentIds, o
     for (let i = startIndex; i < selectedAgentIds.length; i++) {
       const agentId = selectedAgentIds[i]
       setCurrentAgentIndex(i)
-      setStatus(`Agent ${i + 1} of ${selectedAgentIds.length}: Researching ${agentId.replace('_', ' ')}...`)
+      setStatus(`Agent \${i + 1} of \${selectedAgentIds.length}: Researching \${agentId.replace('_', ' ')}...`)
 
       try {
         const report = await generateAgentReport(agentId, projectContext)
-        setStatus(`Saving ${agentId} report...`)
+        setStatus(`Saving \${agentId} report...`)
 
-        await window.api.saveReport(projectContext.path, `${agentId}_report.md`, report.content)
+        await window.api.saveReport(projectContext.path, `\${agentId}_report.md`, report.content)
 
         await updateProjectMemory(projectContext.path, {
           reports: [{
             agentId,
-            filename: `${agentId}_report.md`,
+            filename: `\${agentId}_report.md`,
             summary: report.content.substring(0, 200) + '...'
           }]
+        })
+
+        // Index report for full-text search
+        await window.api.searchIndex({
+          projectPath: projectContext.path,
+          type: 'report',
+          title: `\${agentId.replace('_', ' ')} Report`,
+          content: report.content
         })
 
         setCompletedAgents(prev => [...prev, agentId])
       } catch (err: any) {
         console.error(`Failed to generate report for \${agentId}:`, err)
         setError(`Failed to generate report for \${agentId.replace('_', ' ')}. Check your API key or connection.`)
-        return // Stop the loop on error
+        return
       }
     }
 
