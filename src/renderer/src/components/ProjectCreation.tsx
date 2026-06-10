@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Upload, X, FileText, Loader2 } from 'lucide-react'
-import logo from '@renderer/assets/logo.png'
+import logo from '../assets/logo.png'
 
 const projectSchema = z.object({
   name: z.string()

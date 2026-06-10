@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import logo from '@renderer/assets/logo.png'
+import logo from '../assets/logo.png'
 
 const authSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
