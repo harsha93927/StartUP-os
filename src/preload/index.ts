@@ -13,12 +13,10 @@ const api = {
   readJson: (projectPath: string, relativePath: string) =>
     ipcRenderer.invoke('fs:readJson', { projectPath, relativePath }),
   writeJson: (projectPath: string, relativePath: string, data: any) =>
-    ipcRenderer.invoke('fs:writeJson', { projectPath, relativePath, data })
+    ipcRenderer.invoke('fs:writeJson', { projectPath, relativePath, data }),
+  openPath: (path: string) => ipcRenderer.invoke('fs:openPath', path)
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)

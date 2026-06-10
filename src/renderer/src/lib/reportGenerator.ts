@@ -9,13 +9,13 @@ export interface Report {
 
 export async function generateAgentReport(agentId: string, projectContext: any): Promise<Report> {
   const agent = AGENT_REGISTRY[agentId]
-  if (!agent) throw new Error(`Agent ${agentId} not found`)
+  if (!agent) throw new Error(`Agent \${agentId} not found`)
 
   const systemPrompt = `
-    ${agent.instructions}
+    \${agent.instructions}
     You are writing a professional report for a founder.
-    Project: ${projectContext.name}
-    Description: ${projectContext.description}
+    Project: \${projectContext.name}
+    Description: \${projectContext.description}
 
     The report should include:
     - Executive Summary
@@ -29,24 +29,28 @@ export async function generateAgentReport(agentId: string, projectContext: any):
   `
 
   try {
-    // @ts-ignore
     const response = await window.api.aiChat({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: 'Generate your specialist report based on the project context.' }
-      ]
+      ],
+      model: 'meta/llama-3.1-405b-instruct'
     })
+
+    if (!response || !response.choices || !response.choices[0]) {
+      throw new Error('Invalid response from AI provider')
+    }
 
     const content = response.choices[0].message.content
 
     return {
       agentId,
-      title: `${agent.name} Report`,
+      title: `\${agent.name} Report`,
       content,
       timestamp: new Date().toISOString()
     }
-  } catch (error) {
-    console.error(`Error generating report for ${agentId}:`, error)
+  } catch (error: any) {
+    console.error(`Error generating report for \${agentId}:`, error)
     throw error
   }
 }

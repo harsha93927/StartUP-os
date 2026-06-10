@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Upload, X, FileText, Loader2 } from 'lucide-react'
-import logo from '../assets/logo.png'
 
 const projectSchema = z.object({
   name: z.string()
@@ -72,8 +71,10 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
   return (
     <div className="min-h-screen w-full bg-background flex flex-col p-8">
       <div className="flex items-center gap-3 mb-12">
-        <img src={logo} alt="SOS" className="w-8 h-8 object-contain" />
-        <span className="text-xl font-semibold tracking-tight text-foreground">Startup OS</span>
+        <div className="w-8 h-8 flex items-center justify-center">
+           <img src="/logo.png" alt="SOS" className="w-full h-full object-contain" />
+        </div>
+        <span className="text-lg font-bold tracking-tight text-foreground">Startup OS</span>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
@@ -95,7 +96,7 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
               <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Project Name</label>
               <input
                 {...register("name")}
-                className={`w-full text-3xl font-medium bg-transparent border-b-2 focus:outline-none transition-colors py-2 ${errors.name ? 'border-red-500' : 'border-black/10 focus:border-black'}`}
+                className={`w-full text-3xl font-medium bg-transparent border-b-2 focus:outline-none transition-colors py-2 ${errors.name ? 'border-red-500' : 'border-border focus:border-primary'}`}
                 placeholder="AI Resume Builder"
                 autoFocus
               />
@@ -127,7 +128,7 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
 
               <div className="flex flex-wrap gap-3">
                 {attachments.map((file, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-black/5 px-3 py-2 rounded-lg group">
+                  <div key={i} className="flex items-center gap-2 bg-secondary px-3 py-2 rounded-lg group">
                     <FileText className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium truncate max-w-[200px]">{file.name}</span>
                     <button
@@ -140,7 +141,7 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
                   </div>
                 ))}
 
-                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-black/20 hover:border-black/40 cursor-pointer transition-colors text-muted-foreground hover:text-black">
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border hover:border-muted-foreground cursor-pointer transition-colors text-muted-foreground hover:text-foreground">
                   <Upload className="w-4 h-4" />
                   <span className="text-sm font-medium">Add PDF, DOCX or TXT</span>
                   <input
@@ -158,7 +159,7 @@ export default function ProjectCreation({ onCreateProject, isLoading }: ProjectC
               <button
                 disabled={!isValid || isLoading}
                 type="submit"
-                className="inline-flex items-center justify-center rounded-full bg-black text-white px-10 py-5 text-lg font-medium hover:bg-black/90 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:shadow-black/20"
+                className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground px-10 py-5 text-lg font-medium hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-xl shadow-primary/10"
               >
                 {isLoading ? (
                   <>

@@ -14,7 +14,8 @@ import ContextualAIPanel from './components/ContextualAIPanel'
 import CommandPalette from './components/CommandPalette'
 import { useAppStore } from './store/useAppStore'
 import { RoadmapBlock, generateRoadmap } from './lib/roadmap'
-import { LayoutDashboard, Map, FileText, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Map, FileText, Settings, LogOut, ChevronRight, Search } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 enum AppPhase {
   AUTHENTICATION,
@@ -117,35 +118,59 @@ function App() {
 
     case AppPhase.DASHBOARD:
       return (
-        <div className="flex h-screen bg-background overflow-hidden">
+        <div className="flex h-screen bg-background overflow-hidden text-foreground">
           {/* SIDEBAR */}
-          <div className="w-64 border-r border-black/5 flex flex-col p-6 space-y-8 bg-[#FBF9F7]">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-black rounded" />
-              <span className="font-semibold tracking-tight">Startup OS</span>
+          <div className="w-64 border-r border-border flex flex-col p-6 space-y-8 bg-secondary/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
+                   <div className="w-2.5 h-2.5 bg-background rounded-sm rotate-45" />
+                </div>
+                <span className="font-bold tracking-tight text-sm">Startup OS</span>
+              </div>
             </div>
 
-            <nav className="flex-1 space-y-1">
-              {[
-                { id: 'today', label: 'Today', icon: LayoutDashboard },
-                { id: 'roadmap', label: 'Roadmap', icon: Map },
-                { id: 'reports', label: 'Strategy', icon: FileText },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
-                    activeTab === item.id ? 'bg-black text-white' : 'hover:bg-black/5 text-muted-foreground'
-                  }`}
-                >
-                  <item.icon className="w-4 h-4" />
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-
             <div className="space-y-1">
-               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-black/5">
+               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-3 mb-2">Workspace</p>
+               <nav className="space-y-1">
+                {[
+                  { id: 'today', label: 'Today', icon: LayoutDashboard },
+                  { id: 'roadmap', label: 'Roadmap', icon: Map },
+                  { id: 'reports', label: 'Strategy', icon: FileText },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id as any)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all \${
+                      activeTab === item.id
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10'
+                      : 'hover:bg-secondary text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </div>
+                    {activeTab === item.id && <motion.div layoutId="active" className="w-1 h-1 bg-primary-foreground rounded-full" />}
+                  </button>
+                ))}
+               </nav>
+            </div>
+
+            <div className="flex-1" />
+
+            <div className="space-y-1 pt-4 border-t border-border">
+               <button
+                  onClick={() => setIsCommandPaletteOpen(true)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Search className="w-4 h-4" />
+                    Search
+                  </div>
+                  <kbd className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border group-hover:bg-background">⌘K</kbd>
+               </button>
+               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
                   <Settings className="w-4 h-4" />
                   Settings
                </button>
@@ -154,7 +179,7 @@ function App() {
                     setCurrentProject(null)
                     setPhase(AppPhase.PROJECT_CREATION)
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
                   Exit Project
@@ -163,23 +188,40 @@ function App() {
           </div>
 
           {/* MAIN CONTENT */}
-          <main className="flex-1 overflow-y-auto p-12">
-             {activeTab === 'today' && <TodayView projectName={currentProject.name} blocks={roadmap} />}
-             {activeTab === 'roadmap' && (
-               <RoadmapUI
-                 blocks={roadmap}
-                 onAskAI={(block) => {
-                   setSelectedBlock(block)
-                   setIsAIPanelOpen(true)
-                 }}
-               />
-             )}
-             {activeTab === 'reports' && (
-               <ReportsTab
-                 reports={memory?.reports || []}
-                 onOpenReport={() => {}}
-               />
-             )}
+          <main className="flex-1 overflow-y-auto bg-background p-8 md:p-12">
+             <AnimatePresence mode="wait">
+               <motion.div
+                 key={activeTab}
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -10 }}
+                 transition={{ duration: 0.2 }}
+                 className="h-full"
+               >
+                 {activeTab === 'today' && <TodayView projectName={currentProject.name} blocks={roadmap} />}
+                 {activeTab === 'roadmap' && (
+                   <div className="max-w-4xl mx-auto w-full space-y-8">
+                      <div className="space-y-1">
+                        <h1 className="text-3xl font-semibold tracking-tight">Roadmap</h1>
+                        <p className="text-sm text-muted-foreground">Strategic execution blocks for your startup.</p>
+                      </div>
+                      <RoadmapUI
+                        blocks={roadmap}
+                        onAskAI={(block) => {
+                          setSelectedBlock(block)
+                          setIsAIPanelOpen(true)
+                        }}
+                      />
+                   </div>
+                 )}
+                 {activeTab === 'reports' && (
+                   <ReportsTab
+                     reports={memory?.reports || []}
+                     onOpenReport={() => {}}
+                   />
+                 )}
+               </motion.div>
+             </AnimatePresence>
           </main>
 
           <ContextualAIPanel

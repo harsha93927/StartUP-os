@@ -6,7 +6,6 @@ import fs from 'fs-extra'
 import axios from 'axios'
 
 function createWindow(): void {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -35,7 +34,6 @@ function createWindow(): void {
   }
 }
 
-// Store API Key in memory for session
 let NVIDIA_API_KEY = ''
 
 app.whenReady().then(() => {
@@ -122,6 +120,10 @@ app.whenReady().then(() => {
     } catch (error: any) {
       return { success: false, error: error.message }
     }
+  })
+
+  ipcMain.handle('fs:openPath', async (_, path) => {
+    shell.openPath(path)
   })
 
   ipcMain.handle('ai:setKey', (_, key) => {

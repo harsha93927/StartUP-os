@@ -7,27 +7,45 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#FDFCFB",
-        foreground: "#1A1A1A",
+        background: "#FFFFFF",
+        foreground: "#09090B",
         primary: {
-          DEFAULT: "#000000",
-          foreground: "#FFFFFF",
+          DEFAULT: "#18181B",
+          foreground: "#FAFAFA",
         },
         secondary: {
-          DEFAULT: "#F5F5F5",
-          foreground: "#1A1A1A",
+          DEFAULT: "#F4F4F5",
+          foreground: "#18181B",
         },
         muted: {
-          DEFAULT: "#F5F5F5",
-          foreground: "#737373",
+          DEFAULT: "#F4F4F5",
+          foreground: "#71717A",
         },
         accent: {
-          DEFAULT: "#F5F5F5",
-          foreground: "#1A1A1A",
+          DEFAULT: "#F4F4F5",
+          foreground: "#18181B",
         },
+        border: "#E4E4E7",
+        input: "#E4E4E7",
+        ring: "#18181B",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+      },
+      borderRadius: {
+        lg: "0.5rem",
+        md: "calc(0.5rem - 2px)",
+        sm: "calc(0.5rem - 4px)",
       },
     },
   },
